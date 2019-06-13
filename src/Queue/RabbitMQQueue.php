@@ -4,7 +4,7 @@ namespace VladimirYuldashev\LaravelQueueRabbitMQ\Queue;
 
 use DateInterval;
 use DateTimeInterface;
-use Exception;
+use \Exception;
 use RuntimeException;
 use Illuminate\Queue\Queue;
 use Illuminate\Support\Str;
@@ -137,11 +137,7 @@ class RabbitMQQueue extends Queue implements QueueContract
 
             return $message->getCorrelationId();
         } catch (Exception $exception) {
-            try {
-                $this->reportConnectionError('pushRaw', $exception);
-            } catch (Exception $e) {
-                unset($e);
-            }
+            $this->reportConnectionError('pushRaw', $exception);
 
             return;
         }
@@ -185,11 +181,7 @@ class RabbitMQQueue extends Queue implements QueueContract
                 return new RabbitMQJob($this->container, $this, $consumer, $message);
             }
         } catch (Throwable $exception) {
-            try {
-                $this->reportConnectionError('pop', $exception);
-            } catch (Exception $e) {
-                unset($e);
-            }
+            $this->reportConnectionError('pop', $exception);
 
             return;
         }
@@ -317,7 +309,7 @@ class RabbitMQQueue extends Queue implements QueueContract
     /**
      * @param string $action
      * @param Throwable $e
-     * @throws Exception
+     * @throws RuntimeException
      */
     protected function reportConnectionError($action, Throwable $e)
     {
@@ -328,7 +320,7 @@ class RabbitMQQueue extends Queue implements QueueContract
 
         // If it's set to false, throw an error rather than waiting
         if ($this->sleepOnError === false) {
-            throw new RuntimeException('Error writing data to the connection with RabbitMQ', null, $e);
+            throw new RuntimeException('Error writing data to the connection with RabbitMQ', $e->getCode(), $e);
         }
 
         // Sleep so that we don't flood the log file
