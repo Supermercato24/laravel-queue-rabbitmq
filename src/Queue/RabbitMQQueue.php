@@ -1,7 +1,10 @@
-<?php
+<?php declare(strict_types=1);
 
 namespace VladimirYuldashev\LaravelQueueRabbitMQ\Queue;
 
+use DateInterval;
+use DateTimeInterface;
+use \Exception;
 use RuntimeException;
 use Illuminate\Queue\Queue;
 use Illuminate\Support\Str;
@@ -12,8 +15,14 @@ use Interop\Amqp\AmqpContext;
 use Interop\Amqp\AmqpMessage;
 use Interop\Amqp\Impl\AmqpBind;
 use Illuminate\Contracts\Queue\Queue as QueueContract;
+use Throwable;
 use VladimirYuldashev\LaravelQueueRabbitMQ\Queue\Jobs\RabbitMQJob;
 
+/**
+ * Class RabbitMQQueue
+ *
+ * @package VladimirYuldashev\LaravelQueueRabbitMQ\Queue
+ */
 class RabbitMQQueue extends Queue implements QueueContract
 {
     protected $sleepOnError;
@@ -21,7 +30,6 @@ class RabbitMQQueue extends Queue implements QueueContract
     protected $queueName;
     protected $queueOptions;
     protected $exchangeOptions;
-
     protected $declaredExchanges = [];
     protected $declaredQueues = [];
 
@@ -31,6 +39,12 @@ class RabbitMQQueue extends Queue implements QueueContract
     protected $context;
     protected $correlationId;
 
+    /**
+     * RabbitMQQueue constructor.
+     *
+     * @param AmqpContext $context
+     * @param array $config
+     */
     public function __construct(AmqpContext $context, array $config)
     {
         $this->context = $context;
@@ -51,7 +65,7 @@ class RabbitMQQueue extends Queue implements QueueContract
     public function size($queueName = null): int
     {
         /** @var AmqpQueue $queue */
-        [$queue] = $this->declareEverything($queueName);
+        list($queue) = $this->declareEverything($queueName);
 
         return $this->context->declareQueue($queue);
     }
@@ -59,7 +73,7 @@ class RabbitMQQueue extends Queue implements QueueContract
     /** {@inheritdoc} */
     public function push($job, $data = '', $queue = null)
     {
-        return $this->pushRaw($this->createPayload($job, $queue, $data), $queue, []);
+        return $this->pushRaw($this->createPayload($job, $data), $queue);
     }
 
     /** {@inheritdoc} */
@@ -70,7 +84,7 @@ class RabbitMQQueue extends Queue implements QueueContract
              * @var AmqpTopic
              * @var AmqpQueue $queue
              */
-            [$queue, $topic] = $this->declareEverything($queueName);
+            list($queue, $topic) = $this->declareEverything($queueName);
 
             /** @var AmqpMessage $message */
             $message = $this->context->createMessage($payload);
@@ -121,7 +135,7 @@ class RabbitMQQueue extends Queue implements QueueContract
             $producer->send($topic, $message);
 
             return $message->getCorrelationId();
-        } catch (\Exception $exception) {
+        } catch (Exception $exception) {
             $this->reportConnectionError('pushRaw', $exception);
 
             return;
@@ -131,22 +145,23 @@ class RabbitMQQueue extends Queue implements QueueContract
     /** {@inheritdoc} */
     public function later($delay, $job, $data = '', $queue = null)
     {
-        return $this->pushRaw($this->createPayload($job, $queue, $data), $queue, ['delay' => $this->secondsUntil($delay)]);
+        return $this->pushRaw($this->createPayload($job, $data), $queue, ['delay' => $this->secondsUntil($delay)]);
     }
 
     /**
      * Release a reserved job back onto the queue.
      *
-     * @param  \DateTimeInterface|\DateInterval|int $delay
+     * @param  DateTimeInterface|DateInterval|int $delay
      * @param  string|object $job
      * @param  mixed $data
      * @param  string $queue
      * @param  int $attempts
+     *
      * @return mixed
      */
     public function release($delay, $job, $data, $queue, $attempts = 0)
     {
-        return $this->pushRaw($this->createPayload($job, $queue, $data), $queue, [
+        return $this->pushRaw($this->createPayload($job, $data), $queue, [
             'delay' => $this->secondsUntil($delay),
             'attempts' => $attempts,
         ]);
@@ -157,14 +172,14 @@ class RabbitMQQueue extends Queue implements QueueContract
     {
         try {
             /** @var AmqpQueue $queue */
-            [$queue] = $this->declareEverything($queueName);
+            list($queue) = $this->declareEverything($queueName);
 
             $consumer = $this->context->createConsumer($queue);
 
             if ($message = $consumer->receiveNoWait()) {
                 return new RabbitMQJob($this->container, $this, $consumer, $message);
             }
-        } catch (\Throwable $exception) {
+        } catch (Throwable $exception) {
             $this->reportConnectionError('pop', $exception);
 
             return;
@@ -188,7 +203,7 @@ class RabbitMQQueue extends Queue implements QueueContract
      *
      * @return void
      */
-    public function setCorrelationId(string $id): void
+    public function setCorrelationId(string $id)
     {
         $this->correlationId = $id;
     }
@@ -258,14 +273,24 @@ class RabbitMQQueue extends Queue implements QueueContract
         return [$queue, $topic];
     }
 
-    protected function getQueueName($queueName = null)
+    /**
+     * Get queue name.
+     *
+     * @param string $queueName
+     *
+     * @return string
+     */
+    protected function getQueueName($queueName = null): string
     {
         return $queueName ?: $this->queueName;
     }
 
-    protected function createPayloadArray($job, $queue, $data = '')
+    /**
+     * @inheritDoc
+     */
+    protected function createPayloadArray($job, $data = '')
     {
-        return array_merge(parent::createPayloadArray($job, $queue, $data), [
+        return array_merge(parent::createPayloadArray($job, $data), [
             'id' => $this->getRandomId(),
         ]);
     }
@@ -282,10 +307,10 @@ class RabbitMQQueue extends Queue implements QueueContract
 
     /**
      * @param string $action
-     * @param \Throwable $e
-     * @throws \Exception
+     * @param Throwable $e
+     * @throws RuntimeException
      */
-    protected function reportConnectionError($action, \Throwable $e)
+    protected function reportConnectionError($action, Throwable $e)
     {
         /** @var LoggerInterface $logger */
         $logger = $this->container['log'];
@@ -294,7 +319,7 @@ class RabbitMQQueue extends Queue implements QueueContract
 
         // If it's set to false, throw an error rather than waiting
         if ($this->sleepOnError === false) {
-            throw new RuntimeException('Error writing data to the connection with RabbitMQ', null, $e);
+            throw new RuntimeException('Error writing data to the connection with RabbitMQ', $e->getCode(), $e);
         }
 
         // Sleep so that we don't flood the log file

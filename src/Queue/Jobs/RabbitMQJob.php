@@ -1,4 +1,4 @@
-<?php
+<?php declare(strict_types=1);
 
 namespace VladimirYuldashev\LaravelQueueRabbitMQ\Queue\Jobs;
 
@@ -12,8 +12,12 @@ use Illuminate\Container\Container;
 use Illuminate\Database\DetectsDeadlocks;
 use Illuminate\Contracts\Queue\Job as JobContract;
 use VladimirYuldashev\LaravelQueueRabbitMQ\Queue\RabbitMQQueue;
-use VladimirYuldashev\LaravelQueueRabbitMQ\Horizon\RabbitMQQueue as HorizonRabbitMQQueue;
 
+/**
+ * Class RabbitMQJob
+ *
+ * @package VladimirYuldashev\LaravelQueueRabbitMQ\Queue\Jobs
+ */
 class RabbitMQJob extends Job implements JobContract
 {
     use DetectsDeadlocks;
@@ -21,12 +25,20 @@ class RabbitMQJob extends Job implements JobContract
     /**
      * Same as RabbitMQQueue, used for attempt counts.
      */
-    public const ATTEMPT_COUNT_HEADERS_KEY = 'attempts_count';
+    const ATTEMPT_COUNT_HEADERS_KEY = 'attempts_count';
 
     protected $connection;
     protected $consumer;
     protected $message;
 
+    /**
+     * RabbitMQJob constructor.
+     *
+     * @param Container $container
+     * @param RabbitMQQueue $connection
+     * @param AmqpConsumer $consumer
+     * @param AmqpMessage $message
+     */
     public function __construct(
         Container $container,
         RabbitMQQueue $connection,
@@ -48,12 +60,12 @@ class RabbitMQJob extends Job implements JobContract
      *
      * @return void
      */
-    public function fire(): void
+    public function fire()
     {
         try {
             $payload = $this->payload();
 
-            [$class, $method] = JobName::parse($payload['job']);
+            list($class, $method) = JobName::parse($payload['job']);
 
             with($this->instance = $this->resolve($class))->{$method}($this, $payload['data']);
         } catch (Exception $exception) {
@@ -95,22 +107,17 @@ class RabbitMQJob extends Job implements JobContract
     }
 
     /** {@inheritdoc} */
-    public function delete(): void
+    public function delete()
     {
         parent::delete();
 
         $this->consumer->acknowledge($this->message);
-
-        // required for Laravel Horizon
-        if ($this->connection instanceof HorizonRabbitMQQueue) {
-            $this->connection->deleteReserved($this->queue, $this);
-        }
     }
 
     /** {@inheritdoc}
      * @throws Exception
      */
-    public function release($delay = 0): void
+    public function release($delay = 0)
     {
         parent::release($delay);
 
@@ -150,7 +157,7 @@ class RabbitMQJob extends Job implements JobContract
      *
      * @return void
      */
-    public function setJobId($id): void
+    public function setJobId($id)
     {
         $this->connection->setCorrelationId($id);
     }
