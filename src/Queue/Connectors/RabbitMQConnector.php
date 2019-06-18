@@ -4,12 +4,10 @@ namespace VladimirYuldashev\LaravelQueueRabbitMQ\Queue\Connectors;
 
 use Illuminate\Support\Arr;
 use Interop\Amqp\AmqpContext;
-use InvalidArgumentException;
 use Illuminate\Contracts\Queue\Queue;
 use Interop\Amqp\AmqpConnectionFactory;
 use Enqueue\AmqpTools\DelayStrategyAware;
 use Illuminate\Contracts\Events\Dispatcher;
-use Illuminate\Queue\Events\WorkerStopping;
 use Enqueue\AmqpTools\RabbitMqDlxDelayStrategy;
 use Illuminate\Queue\Connectors\ConnectorInterface;
 use LogicException;
@@ -80,16 +78,6 @@ class RabbitMQConnector implements ConnectorInterface
         /** @var AmqpContext $context */
         $context = $factory->createContext();
 
-        $this->dispatcher->listen(WorkerStopping::class, static function () use ($context) {
-            $context->close();
-        });
-
-        $worker = Arr::get($config, 'worker', 'default');
-
-        if ($worker === 'default') {
-            return new RabbitMQQueue($context, $config);
-        }
-
-        throw new InvalidArgumentException('Invalid worker.');
+        return new RabbitMQQueue($context, $config);
     }
 }

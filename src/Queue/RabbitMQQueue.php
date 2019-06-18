@@ -5,6 +5,7 @@ namespace VladimirYuldashev\LaravelQueueRabbitMQ\Queue;
 use DateInterval;
 use DateTimeInterface;
 use \Exception;
+use Carbon\Carbon;
 use RuntimeException;
 use Illuminate\Queue\Queue;
 use Illuminate\Support\Str;
@@ -287,16 +288,6 @@ class RabbitMQQueue extends Queue implements QueueContract
     }
 
     /**
-     * @inheritDoc
-     */
-    protected function createPayloadArray($job, $data = '')
-    {
-        return array_merge(parent::createPayloadArray($job, $data), [
-            'id' => $this->getRandomId(),
-        ]);
-    }
-
-    /**
      * Get a random ID string.
      *
      * @return string
@@ -325,5 +316,45 @@ class RabbitMQQueue extends Queue implements QueueContract
 
         // Sleep so that we don't flood the log file
         sleep($this->sleepOnError);
+    }
+
+    /**
+     * Get the number of seconds until the given DateTime.
+     *
+     * @param  \DateTimeInterface|\DateInterval|int  $delay
+     * @return int
+     */
+    protected function secondsUntil($delay): int
+    {
+        $delay = $this->parseDateInterval($delay);
+
+        return $delay instanceof DateTimeInterface
+            ? max(0, $delay->getTimestamp() - $this->currentTime())
+            : (int) $delay;
+    }
+
+    /**
+     * If the given value is an interval, convert it to a DateTime instance.
+     *
+     * @param  \DateTimeInterface|\DateInterval|int  $delay
+     * @return \DateTimeInterface|int
+     */
+    protected function parseDateInterval($delay)
+    {
+        if ($delay instanceof DateInterval) {
+            $delay = Carbon::now()->add($delay);
+        }
+
+        return $delay;
+    }
+
+    /**
+     * Get the current system time as a UNIX timestamp.
+     *
+     * @return int
+     */
+    protected function currentTime(): int
+    {
+        return Carbon::now()->getTimestamp();
     }
 }

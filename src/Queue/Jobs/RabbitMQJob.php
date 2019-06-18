@@ -7,9 +7,7 @@ use Illuminate\Support\Str;
 use Interop\Amqp\AmqpMessage;
 use Illuminate\Queue\Jobs\Job;
 use Interop\Amqp\AmqpConsumer;
-use Illuminate\Queue\Jobs\JobName;
 use Illuminate\Container\Container;
-use Illuminate\Database\DetectsDeadlocks;
 use Illuminate\Contracts\Queue\Job as JobContract;
 use VladimirYuldashev\LaravelQueueRabbitMQ\Queue\RabbitMQQueue;
 
@@ -20,8 +18,6 @@ use VladimirYuldashev\LaravelQueueRabbitMQ\Queue\RabbitMQQueue;
  */
 class RabbitMQJob extends Job implements JobContract
 {
-    use DetectsDeadlocks;
-
     /**
      * Same as RabbitMQQueue, used for attempt counts.
      */
@@ -30,6 +26,8 @@ class RabbitMQJob extends Job implements JobContract
     protected $connection;
     protected $consumer;
     protected $message;
+
+    protected $payload;
 
     /**
      * RabbitMQJob constructor.
@@ -50,7 +48,6 @@ class RabbitMQJob extends Job implements JobContract
         $this->consumer = $consumer;
         $this->message = $message;
         $this->queue = $consumer->getQueue()->getQueueName();
-        $this->connectionName = $connection->getConnectionName();
     }
 
     /**
@@ -62,25 +59,6 @@ class RabbitMQJob extends Job implements JobContract
      */
     public function fire()
     {
-        try {
-            $payload = $this->payload();
-
-            list($class, $method) = JobName::parse($payload['job']);
-
-            with($this->instance = $this->resolve($class))->{$method}($this, $payload['data']);
-        } catch (Exception $exception) {
-            if (
-                $this->causedByDeadlock($exception) ||
-                Str::contains($exception->getMessage(), ['detected deadlock'])
-            ) {
-                sleep(2);
-                $this->fire();
-
-                return;
-            }
-
-            throw $exception;
-        }
     }
 
     /**
@@ -120,23 +98,6 @@ class RabbitMQJob extends Job implements JobContract
     public function release($delay = 0)
     {
         parent::release($delay);
-
-        $this->delete();
-
-        $body = $this->payload();
-
-        /*
-         * Some jobs don't have the command set, so fall back to just sending it the job name string
-         */
-        if (isset($body['data']['command']) === true) {
-            $job = $this->unserialize($body);
-        } else {
-            $job = $this->getName();
-        }
-
-        $data = $body['data'];
-
-        $this->connection->release($delay, $job, $data, $this->getQueue(), $this->attempts() + 1);
     }
 
     /**
@@ -177,10 +138,7 @@ class RabbitMQJob extends Job implements JobContract
             /* @noinspection UnserializeExploitsInspection */
             return unserialize($body['data']['command']);
         } catch (Exception $exception) {
-            if (
-                $this->causedByDeadlock($exception) ||
-                Str::contains($exception->getMessage(), ['detected deadlock'])
-            ) {
+            if (Str::contains($exception->getMessage(), ['detected deadlock'])) {
                 sleep(2);
 
                 return $this->unserialize($body);
