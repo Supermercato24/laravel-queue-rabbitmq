@@ -84,12 +84,6 @@ class RabbitMQConnector implements ConnectorInterface
             $context->close();
         });
 
-        $worker = Arr::get($config, 'worker', 'default');
-
-        if ($worker === 'default') {
-            return new RabbitMQQueue($context, $config);
-        }
-
-        throw new InvalidArgumentException('Invalid worker.');
+        return new RabbitMQQueue($context, $config);
     }
 }
