@@ -305,7 +305,7 @@ class RabbitMQQueue extends Queue implements QueueContract
     protected function reportConnectionError($action, Throwable $e)
     {
         /** @var LoggerInterface $logger */
-        $logger = $this->container['Log'];
+        $logger = $this->container['log'];
 
         $logger->error('AMQP error while attempting '.$action.': '.$e->getMessage());
 
