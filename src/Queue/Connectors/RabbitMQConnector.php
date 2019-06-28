@@ -9,7 +9,6 @@ use Illuminate\Contracts\Queue\Queue;
 use Interop\Amqp\AmqpConnectionFactory;
 use Enqueue\AmqpTools\DelayStrategyAware;
 use Illuminate\Contracts\Events\Dispatcher;
-use Illuminate\Queue\Events\WorkerStopping;
 use Enqueue\AmqpTools\RabbitMqDlxDelayStrategy;
 use Illuminate\Queue\Connectors\ConnectorInterface;
 use LogicException;
@@ -84,6 +83,16 @@ class RabbitMQConnector implements ConnectorInterface
             $context->close();
         });
 
-        return new RabbitMQQueue($context, $config);
+        $worker = Arr::get($config, 'worker', 'default');
+
+        if ($worker === 'default') {
+            return new RabbitMQQueue($context, $config);
+        }
+
+        if ($worker === \App\Queue\Queue::class) {
+            return new \App\Queue\Queue($context, $config);
+        }
+
+        throw new InvalidArgumentException('Invalid worker.');
     }
 }
