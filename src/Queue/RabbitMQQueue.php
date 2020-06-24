@@ -76,8 +76,13 @@ class RabbitMQQueue extends Queue implements QueueContract
             $message = $this->context->createMessage($payload);
 
             $message->setCorrelationId($this->getCorrelationId());
-            $message->setContentType('application/json');
             $message->setDeliveryMode(AmqpMessage::DELIVERY_MODE_PERSISTENT);
+
+            if (isset($options['content_type'])) {
+                $message->setPriority($options['content_type']);
+            } else {
+                $message->setContentType('application/json');
+            }
 
             if (isset($options['routing_key'])) {
                 $message->setRoutingKey($options['routing_key']);
