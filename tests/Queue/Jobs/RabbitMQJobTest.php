@@ -7,7 +7,7 @@ use Interop\Amqp\AmqpConsumer;
 use PHPUnit\Framework\TestCase;
 use Interop\Amqp\Impl\AmqpMessage;
 use Illuminate\Container\Container;
-use Illuminate\Database\DetectsDeadlocks;
+use Illuminate\Database\DetectsConcurrencyErrors;
 use Illuminate\Contracts\Queue\Job as JobContract;
 use VladimirYuldashev\LaravelQueueRabbitMQ\Queue\RabbitMQQueue;
 use VladimirYuldashev\LaravelQueueRabbitMQ\Queue\Jobs\RabbitMQJob;
@@ -32,7 +32,7 @@ class RabbitMQJobTest extends TestCase
     {
         $rc = new \ReflectionClass(RabbitMQJob::class);
 
-        $this->assertContains(DetectsDeadlocks::class, $rc->getTraitNames());
+        $this->assertContains(DetectsConcurrencyErrors::class, $rc->getTraitNames());
     }
 
     public function testCouldBeConstructedWithExpectedArguments()

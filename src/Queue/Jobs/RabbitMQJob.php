@@ -9,14 +9,14 @@ use Illuminate\Queue\Jobs\Job;
 use Interop\Amqp\AmqpConsumer;
 use Illuminate\Queue\Jobs\JobName;
 use Illuminate\Container\Container;
-use Illuminate\Database\DetectsDeadlocks;
+use Illuminate\Database\DetectsConcurrencyErrors;
 use Illuminate\Contracts\Queue\Job as JobContract;
 use VladimirYuldashev\LaravelQueueRabbitMQ\Queue\RabbitMQQueue;
 use VladimirYuldashev\LaravelQueueRabbitMQ\Horizon\RabbitMQQueue as HorizonRabbitMQQueue;
 
 class RabbitMQJob extends Job implements JobContract
 {
-    use DetectsDeadlocks;
+    use DetectsConcurrencyErrors;
 
     /**
      * Same as RabbitMQQueue, used for attempt counts.
@@ -58,7 +58,7 @@ class RabbitMQJob extends Job implements JobContract
             with($this->instance = $this->resolve($class))->{$method}($this, $payload['data']);
         } catch (Exception $exception) {
             if (
-                $this->causedByDeadlock($exception) ||
+                $this->causedByConcurrencyError($exception) ||
                 Str::contains($exception->getMessage(), ['detected deadlock'])
             ) {
                 sleep(2);
@@ -171,7 +171,7 @@ class RabbitMQJob extends Job implements JobContract
             return unserialize($body['data']['command']);
         } catch (Exception $exception) {
             if (
-                $this->causedByDeadlock($exception) ||
+                $this->causedByConcurrencyError($exception) ||
                 Str::contains($exception->getMessage(), ['detected deadlock'])
             ) {
                 sleep(2);
