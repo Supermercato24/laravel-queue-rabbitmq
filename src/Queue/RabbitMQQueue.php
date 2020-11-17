@@ -2,6 +2,7 @@
 
 namespace VladimirYuldashev\LaravelQueueRabbitMQ\Queue;
 
+use Illuminate\Support\Facades\Config;
 use PhpAmqpLib\Exception\AMQPChannelClosedException;
 use RuntimeException;
 use Illuminate\Queue\Queue;
@@ -247,24 +248,28 @@ class RabbitMQQueue extends Queue implements QueueContract
 
         $queue = $this->context->createQueue($queueName);
 
-        if ($queueName === $this->queueName) {
-            $queue->setArguments($this->queueOptions['arguments']);
-        }
+        /** @var array $queueOptions */
+        $queueOptions = Config::get("queue.connections.rabbitmq.options");
 
-        if ($this->queueOptions['passive']) {
+        $queueOptions = $queueOptions["queue_{$queueName}"] ?? $this->queueOptions;
+
+        if ($queueOptions['arguments']) {
+            $queue->setArguments(is_string($queueOptions['arguments']) ? json_decode($queueOptions['arguments'], true) : $queueOptions['arguments']);
+        }
+        if ($queueOptions['passive']) {
             $queue->addFlag(AmqpQueue::FLAG_PASSIVE);
         }
-        if ($this->queueOptions['durable']) {
+        if ($queueOptions['durable']) {
             $queue->addFlag(AmqpQueue::FLAG_DURABLE);
         }
-        if ($this->queueOptions['exclusive']) {
+        if ($queueOptions['exclusive']) {
             $queue->addFlag(AmqpQueue::FLAG_EXCLUSIVE);
         }
-        if ($this->queueOptions['auto_delete']) {
+        if ($queueOptions['auto_delete']) {
             $queue->addFlag(AmqpQueue::FLAG_AUTODELETE);
         }
 
-        if ($this->queueOptions['declare'] && ! in_array($queueName, $this->declaredQueues, true)) {
+        if ($queueOptions['declare'] && ! in_array($queueName, $this->declaredQueues, true)) {
             try {
                 $this->context->declareQueue($queue);
             } catch (AMQPChannelClosedException $e) {
@@ -274,7 +279,7 @@ class RabbitMQQueue extends Queue implements QueueContract
             $this->declaredQueues[] = $queueName;
         }
 
-        if ($this->queueOptions['bind']) {
+        if ($queueOptions['bind']) {
             $this->context->bind(new AmqpBind($queue, $topic, $queue->getQueueName()));
         }
 
