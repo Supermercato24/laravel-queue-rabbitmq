@@ -7,6 +7,7 @@ use PhpAmqpLib\Exception\AMQPChannelClosedException;
 use RuntimeException;
 use Illuminate\Queue\Queue;
 use Illuminate\Support\Str;
+use Interop\Amqp\AmqpConsumer;
 use Interop\Amqp\AmqpQueue;
 use Interop\Amqp\AmqpTopic;
 use Psr\Log\LoggerInterface;
@@ -160,22 +161,23 @@ class RabbitMQQueue extends Queue implements QueueContract
     }
 
     /** {@inheritdoc} */
-    public function pop($queueName = null)
+    public function pop($queue = null)
     {
         try {
-            /** @var AmqpQueue $queue */
-            [$queue] = $this->declareEverything($queueName);
+            /** @var AmqpQueue $amqpQueue */
+            [$amqpQueue] = $this->declareEverything($queue);
 
-            $consumer = $this->context->createConsumer($queue);
+            /** @var AmqpConsumer $amqpConsumer */
+            $amqpConsumer = $this->context->createConsumer($amqpQueue);
 
-            if ($message = $consumer->receiveNoWait()) {
-                return new RabbitMQJob($this->container, $this, $consumer, $message);
+            if ($message = $amqpConsumer->receiveNoWait()) {
+                return new RabbitMQJob($this->container, $this, $amqpConsumer, $message);
             }
         } catch (\Throwable $exception) {
             $this->reportConnectionError('pop', $exception);
-
-            return;
         }
+
+        return null;
     }
 
     /**
